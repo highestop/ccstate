@@ -7,7 +7,6 @@ import type {
   SignalState,
   StoreContext,
 } from '../../../types/core/store';
-import { withNotifyInterceptor, withSubInterceptor, withUnsubInterceptor } from '../interceptor';
 import { isComputedState } from '../typing-util';
 
 function unmountComputedDependencies<T>(
@@ -97,48 +96,18 @@ export function subSingleSignal<T>(
   context: StoreContext,
   signal?: AbortSignal,
 ) {
-  withSubInterceptor(
-    () => {
-      const mounted = mount(readSignal, signal$, context);
-      mounted.listeners.add(callback$);
+  const mounted = mount(readSignal, signal$, context);
+  mounted.listeners.add(callback$);
 
-      const unsub = () => {
-        withUnsubInterceptor(
-          () => {
-            mounted.listeners.delete(callback$);
+  const unsub = () => {
+    mounted.listeners.delete(callback$);
 
-            if (mounted.readDepts.size === 0 && mounted.listeners.size === 0) {
-              unmount(signal$, context);
-            }
-          },
-          signal$,
-          callback$,
-          context.interceptor?.unsub,
-        );
-      };
+    if (mounted.readDepts.size === 0 && mounted.listeners.size === 0) {
+      unmount(signal$, context);
+    }
+  };
 
-      signal?.addEventListener('abort', unsub, {
-        once: true,
-      });
-    },
-    signal$,
-    callback$,
-    context.interceptor?.sub,
-  );
-}
-
-export function notify(context: StoreContext, mutation: Mutation) {
-  const pendingListeners = mutation.pendingListeners;
-
-  mutation.pendingListeners = new Set();
-
-  for (const listener of pendingListeners) {
-    withNotifyInterceptor(
-      () => {
-        return listener.write(mutation.visitor);
-      },
-      listener,
-      context.interceptor?.notify,
-    );
-  }
+  signal?.addEventListener('abort', unsub, {
+    once: true,
+  });
 }

@@ -28,31 +28,27 @@ describe('unhandled rejections', () => {
     process.off('unhandledRejection', trace);
   });
 
-  test('syncExternal will not raise unhandled rejection', async () => {
-    store._syncExternal((get) => {
-      get(promise$).catch(() => void 0);
-    });
-
-    await delay(0);
-    expect(trace).not.toBeCalled();
-  });
-
-  test('syncExternal to a mounted computed will raise unhandled rejection', async () => {
-    store._syncExternal((get) => {
+  test('watch will raise unhandled rejection', async () => {
+    store.watch((get) => {
       void get(promise$);
     });
 
     await delay(0);
-    trace.mockClear();
+    expect(trace).toBeCalledTimes(1);
+  });
 
+  test('set to a mounted computed will raise unhandled rejection', async () => {
+    store.watch((get) => {
+      void get(promise$);
+    });
     store.set(reload$, (x) => x + 1);
 
     await delay(0);
-    expect(trace).toHaveBeenCalledTimes(1);
+    expect(trace).toHaveBeenCalledTimes(2);
   });
 
   test('manual process unhandled rejection will prevent unhandled rejection', async () => {
-    store._syncExternal((get) => {
+    store.watch((get) => {
       get(promise$).catch(() => void 0);
     });
 
