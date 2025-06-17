@@ -1,4 +1,12 @@
-import type { Command, Getter, Setter, Signal, State, Computed } from '../../../types/core/signal';
+import type {
+  Command,
+  Getter,
+  Setter,
+  Signal,
+  State,
+  Computed,
+  ExternalEffect as ExternalEffect,
+} from '../../../types/core/signal';
 import type {
   StateMap,
   Store,
@@ -20,6 +28,7 @@ import { createMutation, set as innerSet } from './set';
 import { readState } from '../signal/state';
 import { canReadAsCompute } from '../typing-util';
 import { mount as innerMount, unmount, subSingleSignal, notify } from './sub';
+import { command, computed } from '../signal/factory';
 
 const readComputed: ReadComputed = <T>(
   computed$: Computed<T>,
@@ -116,6 +125,33 @@ const set: StoreSet = <T, Args extends SetArgs<T, unknown[]>>(
   );
 };
 
+export function syncExternal(
+  externalEffect: ExternalEffect,
+  context: StoreContext,
+  options?: { signal?: AbortSignal },
+) {
+  const computed$ = computed((get, { signal }) => {
+    let childSignal: AbortSignal | undefined;
+    const effectOptions = {
+      get signal() {
+        if (!childSignal) {
+          childSignal = options?.signal ? AbortSignal.any([options.signal, signal]) : signal;
+        }
+        return childSignal;
+      },
+    };
+
+    externalEffect(get, effectOptions);
+  });
+
+  sub(
+    computed$,
+    command(() => void 0),
+    context,
+    options,
+  );
+}
+
 export class StoreImpl implements Store {
   protected readonly stateMap: StateMap = new WeakMap();
   protected readonly context: StoreContext;
@@ -144,6 +180,10 @@ export class StoreImpl implements Store {
     options?: SubscribeOptions,
   ): () => void {
     return sub(targets$, cb$, this.context, options);
+  }
+
+  _syncExternal(externalEffect: ExternalEffect, options?: { signal?: AbortSignal }) {
+    syncExternal(externalEffect, this.context, options);
   }
 }
 
